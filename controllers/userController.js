@@ -1,6 +1,5 @@
 const db = require("../src/db");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
 
 const {createTransporter} = require("../services/nodemailer");
 
@@ -165,59 +164,6 @@ const checkIfUserNameIsAvailable =  async (req, res) => {
             }
         });    
     }
-
-}
-
-const checkIfUserEmailIsAvailable =  async (req, res) => {
-
-    let body = req.body;
-
-    console.log(`User Email to find : ${body['userEmail']}`);
-
-    let query = `SELECT * FROM users WHERE user_email = "${body['userEmail']}"`;
-
-    db.query(query, (err, result) => {
-        if (err) {
-            console.log('Error while fetching user: ',err);
-            res.status(500).send('Something Went Wrong');
-        } else {
-            const obj = JSON.stringify(result);
-            const json = JSON.parse(obj);
-
-            if (json.length !== 0) {
-                res.status(200).send('false');
-
-            } else {
-                res.status(200).send('true');
-            }
-        }
-    });    
-
-}
-
-const checkIfGoogleUserIsAvailable =  async (req, res) => {
-
-    let body = req.body;
-    console.log(body['userName']);
-
-    let query = `SELECT user_name, user_email FROM users WHERE user_email = "${body['userEmail']}" AND user_name = "${body['userName']}"`;
-
-    db.query(query, (err, result) => {
-        if (err) {
-            console.log('Error while fetching Google user: ',err);
-            res.status(500).send('Something Went Wrong');
-        } else {
-            const obj = JSON.stringify(result);
-            const json = JSON.parse(obj);
-
-            if (json.length !== 0) {
-                res.status(200).send('false');
-
-            } else {
-                res.status(200).send('true');
-            }
-        }
-    });    
 
 }
 
@@ -658,183 +604,6 @@ const logoutUser = async (req, res) => {
     });
 }
 
-const getUserData = async (req, res) => {
-
-    let body = req.claims ;
-    let userName = body['user_name'];
-
-    let query = `SELECT * FROM users WHERE user_name = "${userName}"`;
-
-    db.query(query, (err, result) => {
-
-        if (err) {
-            console.log('Error while fetching user: ',err);
-            let details = JSON.stringify({'action':`FETCH USER DATA`,'status':'FAIL', 'message':`Failed to fetch User data with username ${userName}.`, 'error':`Occured ERROR - ${err}`});
-            let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-            let fetchUserDataActivitylogQueryData = {user_id: userName, action:"FETCH USER DATA",  status:'FAIL' , details: details,}
-            db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-            res.status(404).send('Something went wrong while fetching user data.');
-        } else {
-            const obj = JSON.stringify(result);
-            const json = JSON.parse(obj);
-
-            if (json.length !== 0) {
-                let details = JSON.stringify({'action':`FETCH USER DATA`,'status':'PASS', 'message':`Successfully fetched User data with username ${userName}.`});
-                let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-                let fetchUserDataActivitylogQueryData = {user_id: userName, action:"FETCH USER DATA",  status:'PASS' , details: details,}
-                db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-
-                res.status(200).send({json: json});
-
-            } else {
-                console.log('Error while fetching user');
-                let details = JSON.stringify({'action':`FETCH USER DATA`,'status':'FAIL', 'message':`Failed to fetch User data with username ${userName}.`, 'error':`Occured ERROR - The user data does not exists.`});
-                let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-                let fetchUserDataActivitylogQueryData = {user_id: userName, action:"FETCH USER DATA",  status:'FAIL' , details: details,}
-                db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-                res.status(404).send('The user data does not exists.');
-            }
-        }
-
-    });
-
-}
-
-const getUserToken = async (req, res) => {
-
-    let bodyData = req.body;
-    let isEmail = bodyData['isEmail']
-    let identifier = bodyData['identifier'];
-
-    let query;
-
-    if(isEmail) {
-        query = `SELECT * FROM users WHERE user_email = "${identifier}"`;
-    } else {
-        query = `SELECT * FROM users WHERE user_name = "${identifier}"`;
-    }
-
-    console.log(`Query: ${query}`);
-
-    try {
-
-        db.query(query, (err, result) => {
-
-            if(err) {
-                let details = JSON.stringify({'action':`FETCH USER TOKEN`,'status':'FAIL', 'message':`Failed to fetch User token by identifier ${identifier}.`, 'error':`Occured ERROR - ${err}`});
-                let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-                let fetchUserDataActivitylogQueryData = {user_id: null, action:"FETCH USER TOKEN",  status:'FAIL' , details: details,}
-                db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-                res.status(404).send('Something went wrong while fetching user token.');
-
-            } else {
-
-                const obj = JSON.stringify(result);
-                const json = JSON.parse(obj);
-
-                if(json.length !== 0) {
-
-                    let userData = json[0]['jwt_token'];
-
-                    let details = JSON.stringify({'action':`FETCH USER TOKEN`,'status':'PASS', 'message':`Successfully to fetched User token by identifier ${identifier}.`});
-                    let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-                    let fetchUserDataActivitylogQueryData = {user_id: null, action:"FETCH USER TOKEN",  status:'PASS' , details: details,}
-                    db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-
-                    res.status(200).send({token: userData});
-
-                } else {
-                    let details = JSON.stringify({'action':`FETCH USER TOKEN`,'status':'FAIL', 'message':`Failed to fetch User token by identifier ${identifier}.`, 'error':`Occured ERROR - User does\'nt exists`});
-                    let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-                    let fetchUserDataActivitylogQueryData = {user_id: null, action:"FETCH USER TOKEN",  status:'FAIL' , details: details,}
-                    db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-                    res.status(404).send('Something went wrong while fetching user token.');
-                }
-
-            }
-            
-        });
-        
-    } catch (error) {
-
-        let details = JSON.stringify({'action':`FETCH USER TOKEN`,'status':'FAIL', 'message':`Failed to fetch User token by identifier ${identifier}.`, 'error':`Occured ERROR - ${error}`});
-        let fetchUserDataActivitylogQuery = 'INSERT INTO activity_log SET ?'
-        let fetchUserDataActivitylogQueryData = {user_id: null, action:"FETCH USER TOKEN",  status:'FAIL' , details: details,}
-        db.query(fetchUserDataActivitylogQuery, fetchUserDataActivitylogQueryData, (err) => console.log(err));
-        res.status(404).send('Something went wrong while fetching user token.');
-        
-    }
-
-}
-
-
-const updateUserDetails = async (req, res) => {
-
-    let body = req.body;
-    let userName = req.claims['user_name'];
-
-    let query = `UPDATE users SET user_firstname = "${body['user_firstname']}", user_lastname = "${body['user_lastname']}", user_phonenumber = "${body['user_phonenumber']}", user_birthday = "${body['user_birthday']}" WHERE user_name = "${userName}"`;
-
-    db.query(query, (err) => {
-
-        if (err) {
-            console.log('Error while updating user details', err);
-            let details = JSON.stringify({'action':`UPDATE USER DETAILS`,'status':'FAIL', 'message':`Failed to update User details with username ${userName}.`, 'error':`Occured ERROR - ${err}`});
-            let updateUserDetailesActivitylogQuery = 'INSERT INTO activity_log SET ?'
-            let updateUserDetailesActivitylogQueryData = {user_id: userName, action:"UPDATE USER DETAILS",  status:'FAIL' , details: details,}
-            db.query(updateUserDetailesActivitylogQuery, updateUserDetailesActivitylogQueryData, (err) => console.log(err));
-            res.status(500).send('Something went wrong. User details are not updated.');
-        } else {
-            console.log('Successfully updated user profile');
-            let details = JSON.stringify({'action':`UPDATE USER DETAILS`,'status':'PASS', 'message':`Successfully updated User details with username ${userName}.`});
-            let updateUserDetailesActivitylogQuery = 'INSERT INTO activity_log SET ?'
-            let updateUserDetailesActivitylogQueryData = {user_id: userName, action:"UPDATE USER DETAILS",  status:'PASS' , details: details,}
-            db.query(updateUserDetailesActivitylogQuery, updateUserDetailesActivitylogQueryData, (err) => console.log(err));
-            res.status(200).send('Profile Updated');
-        }
-
-    });
-
-}
-
-const updateUserProfile = async (req, res) => {
-
-    if (req.file === "undefined" || req.file == null) {
-        res.status(422).send("Image is empty");
-    }
-
-    console.log('Update Function Called');
-
-    let file = req.file;
-    let filePath = file.path;
-    let userId = req.query['userId'];
-    let userName = req.claims['user_name'];
-
-    let query = `UPDATE users SET ? WHERE user_id = "${userId}"`;
-    let post = {
-        user_image: filePath,
-    }
-
-    db.query(query, post, (error) => {
-        if (error) {
-            console.log('Error while updating user image');
-            let details = JSON.stringify({'action':`UPDATE USER PROFILE IMAGE`,'status':'FAIL', 'message':`Failed to update User profile image with username ${userName}.`, 'error':`Occured ERROR - ${error}`});
-            let updateUserProfileActivitylogQuery = 'INSERT INTO activity_log SET ?'
-            let updateUserProfileActivitylogQueryData = {user_id: userName, action:"UPDATE USER PROFILE IMAGE",  status:'FAIL' , details: details,}
-            db.query(updateUserProfileActivitylogQuery, updateUserProfileActivitylogQueryData, (err) => console.log(err));
-            res.status(500).send('Error while updating user image');
-        } else {
-            console.log("Successfully updated user image");
-            let details = JSON.stringify({'action':`UPDATE USER PROFILE IMAGE`,'status':'PASS', 'message':`Successfully updated User profile image with username ${userName}.`});
-            let updateUserProfileActivitylogQuery = 'INSERT INTO activity_log SET ?'
-            let updateUserProfileActivitylogQueryData = {user_id: userName, action:"UPDATE USER PROFILE IMAGE",  status:'PASS' , details: details,}
-            db.query(updateUserProfileActivitylogQuery, updateUserProfileActivitylogQueryData, (err) => console.log(err));
-            res.status(200).send({message: "Successfully updated user image", filePath: filePath});
-        }
-    });
-
-}
-
 const updateUserDesiredPercentages = async (req, res) => {
 
     let body = req.body;
@@ -1052,30 +821,6 @@ function generateOTP(limit) {
     return OTP;
 }
 
-let randomNum2
-const resendOTP = async (req, res) => {
-
-    let userEmail = req.body['userEmail'];
-    randomNum2=generateOTP(4);
-    
-    console.log('Random: ', randomNum2);
-
-    let message = makeUserEmailVerificationMessage(userEmail, userEmail, randomNum2);
-
-    const transporter = createTransporter();
-
-    transporter.sendMail(message, (err) => {
-        if (err) {
-            console.log('Failed Sending Email: ',err);
-            res.status(500).send('Failed to send Email');
-        } else {
-            console.log('Successfully Sent Email');
-            res.status(200).send('Sent Email');
-        }
-    });
-
-}
-
 let randomNum1;
 const verifyUserEmail =  (req, res) => {
 
@@ -1166,16 +911,6 @@ const getUserImage = async (req, res) => {
 
 }
 
-const getHashValue = async (value) => {
-    const hashedValue = await bcrypt.hash(value, 10);
-    return hashedValue;
-}
-
-const compareHashValues = async (value, hash) => {
-    const comparison = await bcrypt.compare(value, hash);
-    return comparison;
-}
-
 const checkIfFacebookUserIsAvailable = async (req, res) => {
 
     let body = req.body;
@@ -1210,17 +945,10 @@ module.exports = {
     logoutUser,
     deleteAccount,
     checkIfUserNameIsAvailable,
-    checkIfUserEmailIsAvailable,
-    checkIfGoogleUserIsAvailable,
     checkIfFacebookUserIsAvailable,
-    updateUserDetails,
-    getUserData,
-    getUserToken,
     getUserImage,
-    updateUserProfile,
     updateUserDesiredPercentages,
     verifyUserEmail,
     verifyNumber,
     changeUserPassword,
-    resendOTP
 }
